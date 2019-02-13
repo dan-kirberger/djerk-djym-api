@@ -6,4 +6,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "/b
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bin/helloworld"]
+ENTRYPOINT ["/bin/djerk-djym-api"]
