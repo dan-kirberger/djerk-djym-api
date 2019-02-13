@@ -11,7 +11,7 @@ steps:
   - name: publish
     image: plugins/docker:17.12
     settings:
-      repo: dan-kirberger/djerk-djym-api
+      repo: dankirberger/djerk-djym-api
       auto_tag: true
       dockerfile: Dockerfile
       username:
