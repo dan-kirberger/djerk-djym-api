@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/dan-kirberger/djerk-djym-api/model"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 )
 
 var app App
@@ -22,9 +24,19 @@ func TestMain(m *testing.M) {
 	log.Println("Test server running at " + ts.URL)
 	defer ts.Close()
 
+	purgeDatabase()
 	code := m.Run()
 
 	os.Exit(code)
+}
+
+func purgeDatabase() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := app.MongoClient.Database("testing").Collection("UserProfiles").Drop(ctx)
+	if err != nil {
+		panic("Failed to purge database of test data")
+	}
 }
 
 func TestGetAllUsersReturnsEmptyList(t *testing.T) {

@@ -16,34 +16,11 @@ import (
 )
 
 type App struct {
-	Handler *http.ServeMux
+	Handler     *http.ServeMux
+	MongoClient *mongo.Client
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	//log.Printf("Received request for %s", r.URL.Path[1:])
-	//fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
-	user := model.User{ID: "asdf", FirstName: "dan", LastName: "iel", Weight: 999}
-	response, _ := json.Marshal(user)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(response)
-}
-
-func writeHandler(writer http.ResponseWriter, request *http.Request) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
-	_ = client.Ping(ctx, readpref.Primary())
-
-	collection := client.Database("testing").Collection("UserProfiles")
-	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Dan", "lastName": "K"})
-
-	user := model.User{ID: res.InsertedID.(primitive.ObjectID).Hex(), FirstName: "dan", LastName: "iel", Weight: 999}
-	response, _ := json.Marshal(user)
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(200)
-	writer.Write(response)
-}
+var globalContext App
 
 func users(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
@@ -57,12 +34,10 @@ func users(writer http.ResponseWriter, request *http.Request) {
 }
 
 func getAllUsers(writer http.ResponseWriter, request *http.Request) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
-	//_ = client.Ping(ctx, readpref.Primary())
-
-	mongoUsers, _ := client.Database("testing").Collection("UserProfiles").Find(ctx, bson.D{})
+	mongoUsers, _ := globalContext.MongoClient.Database("testing").Collection("UserProfiles").Find(ctx, bson.D{})
 
 	userModels := make([]model.User, 0)
 
@@ -93,16 +68,14 @@ func addUser(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
-	_ = client.Ping(ctx, readpref.Primary())
-
-	collection := client.Database("testing").Collection("UserProfiles")
+	collection := globalContext.MongoClient.Database("testing").Collection("UserProfiles")
 	res, _ := collection.InsertOne(ctx, bson.M{"firstName": newUser.FirstName, "lastName": newUser.LastName, "weight": newUser.Weight})
 
 	filter := bson.D{{"_id", res.InsertedID}}
-	insertedUser := client.Database("testing").Collection("UserProfiles").FindOne(ctx, filter)
+	insertedUser := globalContext.MongoClient.Database("testing").Collection("UserProfiles").FindOne(ctx, filter)
 	mongoDoc := &bson.D{}
 	err = insertedUser.Decode(mongoDoc)
 	if err != nil {
@@ -124,12 +97,10 @@ func addUser(writer http.ResponseWriter, request *http.Request) {
 }
 
 func deleteUser(writer http.ResponseWriter, userId string) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
-	_ = client.Ping(ctx, readpref.Primary())
-
-	collection := client.Database("testing").Collection("UserProfiles")
+	collection := globalContext.MongoClient.Database("testing").Collection("UserProfiles")
 	objectId, _ := primitive.ObjectIDFromHex(userId)
 	filter := bson.D{{"_id", objectId}}
 	res, _ := collection.DeleteOne(ctx, filter)
@@ -139,14 +110,12 @@ func deleteUser(writer http.ResponseWriter, userId string) {
 }
 
 func getOneUser(writer http.ResponseWriter, userId string) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
-	_ = client.Ping(ctx, readpref.Primary())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	objectId, _ := primitive.ObjectIDFromHex(userId)
 	filter := bson.D{{"_id", objectId}}
-	theUser := client.Database("testing").Collection("UserProfiles").FindOne(ctx, filter)
+	theUser := globalContext.MongoClient.Database("testing").Collection("UserProfiles").FindOne(ctx, filter)
 	mongoDoc := &bson.D{}
 	err := theUser.Decode(mongoDoc)
 	if err != nil {
@@ -204,11 +173,22 @@ func notFound(writer http.ResponseWriter, msg string) {
 	writer.Write(response)
 }
 
-func (a *App) Initialize() {
+func (app *App) Initialize() {
+	log.Println("Initializing database and preparing to serve")
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
+	err := client.Ping(ctx, readpref.Primary())
+	if err != nil {
+		panic(err)
+	}
+	app.MongoClient = client
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/api/users", users)
 	serveMux.HandleFunc("/api/users/", oneUser)
-	a.Handler = serveMux
+	app.Handler = serveMux
+
+	globalContext = *app
+	log.Println("Done with prep")
 }
 
 func (a *App) Run(addr string) {

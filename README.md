@@ -10,6 +10,8 @@ Go training wheels app
  - [ ] Integration Test for all crud
  - [ ] Run tests in drone (with docker mongo service?)
  - [ ] Mongo connection pool/dont init the whole thing every request
+ - [ ] Get rid of globalContext thingy
+ - [ ] Put mongo Databse in app context instead of mongo client maybe?
  - [ ] Talk to Mongo cloud thingy
  - [ ] Talk to Mongo cloud thingy from app engine or wherever
  - [ ] Deploy to app engine from drone
