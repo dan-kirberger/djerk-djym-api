@@ -1,5 +1,5 @@
 kind: pipeline
-name: build_linux_amd64
+name: deploy
 
 steps:
   - name: binary
