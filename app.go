@@ -173,10 +173,10 @@ func notFound(writer http.ResponseWriter, msg string) {
 	writer.Write(response)
 }
 
-func (app *App) Initialize() {
+func (app *App) Initialize(mongoHost string) {
 	log.Println("Initializing database and preparing to serve")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{"localhost"}})
+	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{mongoHost}})
 	err := client.Ping(ctx, readpref.Primary())
 	if err != nil {
 		panic(err)

@@ -1,9 +1,16 @@
+kind: pipeline
+name: build
+
+
 workspace:
   base: /go
   path: src/github.com/dan-kirberger/djerk-djym-api
 
-kind: pipeline
-name: deploy
+services:
+  mongo:
+    image: mongo:4.1
+    command: [ --smallfiles ]
+
 
 steps:
   - name: test

@@ -19,7 +19,7 @@ var ts *httptest.Server
 
 func TestMain(m *testing.M) {
 	app = App{}
-	app.Initialize()
+	app.Initialize("mongo")
 	ts = httptest.NewServer(app.Handler)
 	log.Println("Test server running at " + ts.URL)
 	defer ts.Close()
