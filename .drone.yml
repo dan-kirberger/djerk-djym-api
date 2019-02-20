@@ -7,10 +7,8 @@ workspace:
   path: src/github.com/dan-kirberger/djerk-djym-api
 
 services:
-  mongo:
+  - name: mongo
     image: mongo:4.1
-    command: [ --smallfiles ]
-
 
 steps:
   - name: test
