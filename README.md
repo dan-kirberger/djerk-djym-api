@@ -7,7 +7,8 @@ Go training wheels app
  - [ ] Consolidate response handling junk
  - [ ] Error handling stuff (return 500, not panic)
  - [ ] Log request info on error
- - [ ] Integration Test (stand up mongo in docker?) - unit test looks annoying with web/db stuff
+ - [ ] Integration Test for all crud
+ - [ ] Run tests in drone (with docker mongo service?)
  - [ ] Mongo connection pool/dont init the whole thing every request
  - [ ] Talk to Mongo cloud thingy
  - [ ] Talk to Mongo cloud thingy from app engine or wherever

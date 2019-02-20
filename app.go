@@ -12,9 +12,12 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strconv"
 	"time"
 )
+
+type App struct {
+	Handler *http.ServeMux
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("Received request for %s", r.URL.Path[1:])
@@ -165,9 +168,7 @@ func getOneUser(writer http.ResponseWriter, userId string) {
 }
 
 func oneUser(writer http.ResponseWriter, request *http.Request) {
-	r, _ := regexp.Compile("/api/users/([a-z0-9]+)")
-	log.Println("does it match? " + strconv.FormatBool(r.MatchString(request.URL.Path)))
-	log.Println("matched string: " + r.FindStringSubmatch(request.URL.Path)[1])
+	r, _ := regexp.Compile("^/api/users/([a-f0-9]+)$")
 
 	//possibleId := strings.TrimPrefix(request.URL.Path, "/api/users/")
 	//r.FindString(request.URL.Path)
@@ -195,14 +196,6 @@ func kaboom(writer http.ResponseWriter, e error) {
 	writer.Write(response)
 }
 
-func badRequest(writer http.ResponseWriter, request *http.Request) {
-	errorResponse := model.ErrorResponse{Status: 400, Message: "You can't do that dawg"}
-	response, _ := json.Marshal(errorResponse)
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(400)
-	writer.Write(response)
-}
-
 func notFound(writer http.ResponseWriter, msg string) {
 	errorResponse := model.ErrorResponse{Status: 404, Message: msg}
 	response, _ := json.Marshal(errorResponse)
@@ -211,8 +204,13 @@ func notFound(writer http.ResponseWriter, msg string) {
 	writer.Write(response)
 }
 
-func main() {
-	http.HandleFunc("/api/users", users)
-	http.HandleFunc("/api/users/", oneUser)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+func (a *App) Initialize() {
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/api/users", users)
+	serveMux.HandleFunc("/api/users/", oneUser)
+	a.Handler = serveMux
+}
+
+func (a *App) Run(addr string) {
+	log.Fatal(http.ListenAndServe(addr, a.Handler))
 }
