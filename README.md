@@ -17,6 +17,7 @@ Go training wheels app
  - [ ] Deploy to app engine from drone
  - [ ] Separate driver app - static web app?
  - [ ] Request logging (timing, url??)
+ - [ ] Parameterize mongo info
  
 ###Stuff:
 * Code: here
