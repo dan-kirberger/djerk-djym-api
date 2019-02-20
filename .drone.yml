@@ -10,7 +10,7 @@ steps:
     image: golang:1.11
     pull: true
     commands:
-      - go get github.com/mongodb/mongo-go-driver
+      - go get github.com/mongodb/mongo-go-driver/...
       - go test -v
 
 #  - name: publish
