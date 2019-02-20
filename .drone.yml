@@ -1,12 +1,17 @@
+workspace:
+  base: /go
+  path: src/github.com/dan-kirberger/djerk-djym-api
+
 kind: pipeline
 name: deploy
 
 steps:
-  - name: binary
+  - name: test
     image: golang:1.11
     pull: true
     commands:
-      - make build_linux_amd64
+      - go get github.com/mongodb/mongo-go-driver
+      - go test -v
 
 #  - name: publish
 #    image: plugins/docker:17.12
