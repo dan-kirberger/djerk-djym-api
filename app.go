@@ -176,8 +176,17 @@ func notFound(writer http.ResponseWriter, msg string) {
 func (app *App) Initialize(mongoHost string) {
 	log.Println("Initializing database and preparing to serve")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{mongoHost}})
-	err := client.Ping(ctx, readpref.Primary())
+	clientOptions := options.Client().ApplyURI(mongoHost)
+	client, err := mongo.NewClient(clientOptions)
+	if err != nil {
+		panic(err)
+	}
+	err = client.Connect(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	//client, _ := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{mongoHost}})
+	err = client.Ping(ctx, readpref.Primary())
 	if err != nil {
 		panic(err)
 	}

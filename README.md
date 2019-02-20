@@ -8,7 +8,6 @@ Go training wheels app
  - [ ] Error handling stuff (return 500, not panic)
  - [ ] Log request info on error
  - [ ] Integration Test for all crud
- - [ ] Run tests in drone (with docker mongo service?)
  - [ ] Mongo connection pool/dont init the whole thing every request
  - [ ] Get rid of globalContext thingy
  - [ ] Put mongo Databse in app context instead of mongo client maybe?

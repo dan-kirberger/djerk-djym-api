@@ -14,6 +14,8 @@ steps:
   - name: test
     image: golang:1.11
     pull: true
+    environment:
+       MONGO_URI: "mongodb://mongo:27017"
     commands:
       - go get github.com/mongodb/mongo-go-driver/...
       - go test -v

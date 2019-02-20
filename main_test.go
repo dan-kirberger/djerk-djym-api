@@ -19,7 +19,11 @@ var ts *httptest.Server
 
 func TestMain(m *testing.M) {
 	app = App{}
-	app.Initialize("mongo")
+	mongoUri, exists := os.LookupEnv("MONGO_URI")
+	if !exists {
+		mongoUri = "mongodb://localhost:27017"
+	}
+	app.Initialize(mongoUri)
 	ts = httptest.NewServer(app.Handler)
 	log.Println("Test server running at " + ts.URL)
 	defer ts.Close()

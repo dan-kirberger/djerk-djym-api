@@ -2,6 +2,6 @@ package main
 
 func main() {
 	app := App{}
-	app.Initialize("localhost")
+	app.Initialize("mongodb://localhost:27017")
 	app.Run(":8080")
 }
