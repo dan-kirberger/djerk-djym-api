@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/dan-kirberger/djerk-djym-api/model"
+	"github.com/mongodb/mongo-go-driver/bson"
+	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -43,24 +45,17 @@ func purgeDatabase() {
 	}
 }
 
-func TestGetAllUsersReturnsEmptyList(t *testing.T) {
+func TestGetAllUsersWithoutResults(t *testing.T) {
 	purgeDatabase()
-	resp, err := http.Get(ts.URL + "/api/users")
-	if err != nil {
-		t.Errorf("Failed to fetch users")
-	}
+	resp, _ := http.Get(ts.URL + "/api/users")
 
 	if resp.StatusCode != 200 {
 		t.Errorf("Should be 200 yo, not " + strconv.Itoa(resp.StatusCode))
 	}
-	//responseJson, err := simplejson.NewFromReader(resp.Body)
-	//content := responseJson.GetPath("content").MustArray()
-	//if len(content) > 0 {
-	//	t.Errorf("Expected empty content")
-	//}
+
 	decoder := json.NewDecoder(resp.Body)
 	var mappedResponse model.UserList
-	err = decoder.Decode(&mappedResponse)
+	err := decoder.Decode(&mappedResponse)
 	if err != nil {
 		t.Errorf("Failed to map response json " + err.Error())
 	}
@@ -72,7 +67,33 @@ func TestGetAllUsersReturnsEmptyList(t *testing.T) {
 	}
 }
 
-func TestSingleUserCrud(t *testing.T) {
+func TestGetAllUsersWithResults(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
+	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
+	newId := res.InsertedID.(primitive.ObjectID).Hex()
+
+	resp, err := http.Get(ts.URL + "/api/users")
+	decoder := json.NewDecoder(resp.Body)
+	var userListResponse model.UserList
+	err = decoder.Decode(&userListResponse)
+	if err != nil {
+		t.Fatalf("Failed to map response json " + err.Error())
+	}
+	if len(userListResponse.Users) != 1 {
+		t.Fatalf("Expected one user in response list, found " + strconv.Itoa(len(userListResponse.Users)))
+	}
+	user := userListResponse.Users[0]
+	if user.ID != newId ||
+		user.Weight != 111 ||
+		user.FirstName != "Test" ||
+		user.LastName != "Test" {
+		t.Fatalf("Returned user fields do not match created user")
+	}
+}
+
+func TestCreateUser(t *testing.T) {
 	purgeDatabase()
 
 	userToCreate := model.User{FirstName: "Testy", LastName: "McGee", Weight: 123}
@@ -98,42 +119,61 @@ func TestSingleUserCrud(t *testing.T) {
 		createdUser.LastName != userToCreate.LastName {
 		t.Fatalf("Returned user fields do not match input")
 	}
+}
 
-	resp, err = http.Get(ts.URL + "/api/users/" + createdUser.ID)
-	if err != nil {
-		t.Errorf("Failed to fetch user newly created user")
+func TestGetOneExistingUser(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
+	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
+	newId := res.InsertedID.(primitive.ObjectID).Hex()
+
+	resp, err := http.Get(ts.URL + "/api/users/" + newId)
+	if resp.StatusCode != 200 {
+		t.Errorf("Expected 200 response for existing user, instead got " + strconv.Itoa(resp.StatusCode))
 	}
-	decoder = json.NewDecoder(resp.Body)
+	decoder := json.NewDecoder(resp.Body)
 	var fetchedUser model.User
 	err = decoder.Decode(&fetchedUser)
 	if err != nil {
 		t.Errorf("Failed to map json for fetching user by id " + err.Error())
 	}
-	if fetchedUser.ID != createdUser.ID {
+	if fetchedUser.ID != newId {
 		t.Fatalf("User ID should be present on the response")
 	}
-	if createdUser.Weight != userToCreate.Weight ||
-		createdUser.FirstName != userToCreate.FirstName ||
-		createdUser.LastName != userToCreate.LastName {
-		t.Fatalf("Returned user fields do not match input")
+	if fetchedUser.ID != newId ||
+		fetchedUser.Weight != 111 ||
+		fetchedUser.FirstName != "Test" ||
+		fetchedUser.LastName != "Test" {
+		t.Fatalf("Returned user fields do not match created user")
 	}
-	resp, err = http.Get(ts.URL + "/api/users")
-	decoder = json.NewDecoder(resp.Body)
-	var userListResponse model.UserList
-	err = decoder.Decode(&userListResponse)
-	if err != nil {
-		t.Fatalf("Failed to map response json " + err.Error())
+}
+
+func TestGetOneMissingUser(t *testing.T) {
+	resp, _ := http.Get(ts.URL + "/api/users/i_dont_exist")
+	if resp.StatusCode != 404 {
+		t.Errorf("Expected 404 response for non existing user, instead got " + strconv.Itoa(resp.StatusCode))
 	}
-	if len(userListResponse.Users) != 1 {
-		t.Fatalf("Expected one user in response list, found " + strconv.Itoa(len(userListResponse.Users)))
+}
+
+func TestDeleteUser(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
+	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
+	newId := res.InsertedID.(primitive.ObjectID).Hex()
+
+	resp, _ := http.Get(ts.URL + "/api/users/" + newId)
+	if resp.StatusCode != 200 {
+		t.Errorf("Precreated user should exist, instead got response " + strconv.Itoa(resp.StatusCode))
 	}
 
-	req, _ := http.NewRequest("DELETE", ts.URL+"/api/users/"+createdUser.ID, nil)
-	resp, err = http.DefaultClient.Do(req)
+	req, _ := http.NewRequest("DELETE", ts.URL+"/api/users/"+newId, nil)
+	resp, _ = http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("Should receive 200 from delete, got " + strconv.Itoa(resp.StatusCode))
 	}
-	resp, err = http.Get(ts.URL + "/api/users/" + createdUser.ID)
+	resp, _ = http.Get(ts.URL + "/api/users/" + newId)
 	if resp.StatusCode != 404 {
 		t.Errorf("Should receive 404 when fetching after delete, got " + strconv.Itoa(resp.StatusCode))
 	}
