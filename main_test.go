@@ -18,7 +18,7 @@ import (
 )
 
 var app App
-var ts *httptest.Server
+var testServer *httptest.Server
 
 func TestMain(m *testing.M) {
 	app = App{}
@@ -27,9 +27,9 @@ func TestMain(m *testing.M) {
 		mongoUri = "mongodb://localhost:27017"
 	}
 	app.Initialize(mongoUri)
-	ts = httptest.NewServer(app.Handler)
-	log.Println("Test server running at " + ts.URL)
-	defer ts.Close()
+	testServer = httptest.NewServer(app.Handler)
+	log.Println("Test server running at " + testServer.URL)
+	defer testServer.Close()
 
 	code := m.Run()
 
@@ -45,9 +45,24 @@ func purgeDatabase() {
 	}
 }
 
+func insertUser(user model.User, t *testing.T) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
+	res, _ := collection.InsertOne(ctx, bson.M{"firstName": user.FirstName, "lastName": user.LastName, "weight": user.Weight})
+	newId := res.InsertedID.(primitive.ObjectID).Hex()
+
+	resp, _ := http.Get(testServer.URL + "/api/users/" + newId)
+	if resp.StatusCode != 200 {
+		t.Errorf("Precreated user should exist, instead got response " + strconv.Itoa(resp.StatusCode))
+	}
+
+	return newId
+}
+
 func TestGetAllUsersWithoutResults(t *testing.T) {
 	purgeDatabase()
-	resp, _ := http.Get(ts.URL + "/api/users")
+	resp, _ := http.Get(testServer.URL + "/api/users")
 
 	if resp.StatusCode != 200 {
 		t.Errorf("Should be 200 yo, not " + strconv.Itoa(resp.StatusCode))
@@ -68,13 +83,10 @@ func TestGetAllUsersWithoutResults(t *testing.T) {
 }
 
 func TestGetAllUsersWithResults(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
-	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
-	newId := res.InsertedID.(primitive.ObjectID).Hex()
+	purgeDatabase()
+	newId := insertUser(model.User{FirstName: "Testy", LastName: "McGee", Weight: 123}, t)
 
-	resp, err := http.Get(ts.URL + "/api/users")
+	resp, err := http.Get(testServer.URL + "/api/users")
 	decoder := json.NewDecoder(resp.Body)
 	var userListResponse model.UserList
 	err = decoder.Decode(&userListResponse)
@@ -86,9 +98,9 @@ func TestGetAllUsersWithResults(t *testing.T) {
 	}
 	user := userListResponse.Users[0]
 	if user.ID != newId ||
-		user.Weight != 111 ||
-		user.FirstName != "Test" ||
-		user.LastName != "Test" {
+		user.Weight != 123 ||
+		user.FirstName != "Testy" ||
+		user.LastName != "McGee" {
 		t.Fatalf("Returned user fields do not match created user")
 	}
 }
@@ -99,7 +111,7 @@ func TestCreateUser(t *testing.T) {
 	userToCreate := model.User{FirstName: "Testy", LastName: "McGee", Weight: 123}
 	userCreateJson, _ := json.Marshal(userToCreate)
 
-	resp, _ := http.Post(ts.URL+"/api/users", "application/json", bytes.NewBuffer(userCreateJson))
+	resp, _ := http.Post(testServer.URL+"/api/users", "application/json", bytes.NewBuffer(userCreateJson))
 
 	if resp.StatusCode != 200 {
 		t.Errorf("Should receive 200 after create")
@@ -122,13 +134,10 @@ func TestCreateUser(t *testing.T) {
 }
 
 func TestGetOneExistingUser(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
-	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
-	newId := res.InsertedID.(primitive.ObjectID).Hex()
+	purgeDatabase()
+	newId := insertUser(model.User{FirstName: "Testy", LastName: "McGee", Weight: 123}, t)
 
-	resp, err := http.Get(ts.URL + "/api/users/" + newId)
+	resp, err := http.Get(testServer.URL + "/api/users/" + newId)
 	if resp.StatusCode != 200 {
 		t.Errorf("Expected 200 response for existing user, instead got " + strconv.Itoa(resp.StatusCode))
 	}
@@ -142,38 +151,30 @@ func TestGetOneExistingUser(t *testing.T) {
 		t.Fatalf("User ID should be present on the response")
 	}
 	if fetchedUser.ID != newId ||
-		fetchedUser.Weight != 111 ||
-		fetchedUser.FirstName != "Test" ||
-		fetchedUser.LastName != "Test" {
+		fetchedUser.Weight != 123 ||
+		fetchedUser.FirstName != "Testy" ||
+		fetchedUser.LastName != "McGee" {
 		t.Fatalf("Returned user fields do not match created user")
 	}
 }
 
 func TestGetOneMissingUser(t *testing.T) {
-	resp, _ := http.Get(ts.URL + "/api/users/i_dont_exist")
+	resp, _ := http.Get(testServer.URL + "/api/users/i_dont_exist")
 	if resp.StatusCode != 404 {
 		t.Errorf("Expected 404 response for non existing user, instead got " + strconv.Itoa(resp.StatusCode))
 	}
 }
 
 func TestDeleteUser(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	collection := app.MongoClient.Database("testing").Collection("UserProfiles")
-	res, _ := collection.InsertOne(ctx, bson.M{"firstName": "Test", "lastName": "Test", "weight": 111})
-	newId := res.InsertedID.(primitive.ObjectID).Hex()
+	purgeDatabase()
+	newId := insertUser(model.User{FirstName: "Testy", LastName: "McGee", Weight: 123}, t)
 
-	resp, _ := http.Get(ts.URL + "/api/users/" + newId)
-	if resp.StatusCode != 200 {
-		t.Errorf("Precreated user should exist, instead got response " + strconv.Itoa(resp.StatusCode))
-	}
-
-	req, _ := http.NewRequest("DELETE", ts.URL+"/api/users/"+newId, nil)
-	resp, _ = http.DefaultClient.Do(req)
+	req, _ := http.NewRequest("DELETE", testServer.URL+"/api/users/"+newId, nil)
+	resp, _ := http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 {
 		t.Errorf("Should receive 200 from delete, got " + strconv.Itoa(resp.StatusCode))
 	}
-	resp, _ = http.Get(ts.URL + "/api/users/" + newId)
+	resp, _ = http.Get(testServer.URL + "/api/users/" + newId)
 	if resp.StatusCode != 404 {
 		t.Errorf("Should receive 404 when fetching after delete, got " + strconv.Itoa(resp.StatusCode))
 	}

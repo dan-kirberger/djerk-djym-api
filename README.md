@@ -7,7 +7,6 @@ Go training wheels app
  - [ ] Consolidate response handling junk
  - [ ] Error handling stuff (return 500, not panic)
  - [ ] Log request info on error
- - [ ] Integration Test for all crud
  - [ ] Get rid of globalContext thingy
  - [ ] Talk to Mongo cloud thingy from app engine or wherever
  - [ ] Deploy to app engine from drone
