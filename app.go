@@ -119,7 +119,11 @@ func getOneUser(writer http.ResponseWriter, userId string) {
 	mongoDoc := &bson.D{}
 	err := theUser.Decode(mongoDoc)
 	if err != nil {
-		kaboom(writer, err)
+		if err.Error() == "mongo: no documents in result" {
+			notFound(writer, "User not found:"+userId)
+		} else {
+			kaboom(writer, err)
+		}
 		return
 	}
 	m := mongoDoc.Map()
